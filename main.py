@@ -1,7 +1,5 @@
 import datetime as dt
 from time import sleep
-import Interact
-# import CalendarSync
 import json
 
 
