@@ -3,6 +3,7 @@ import json
 from time import sleep
 
 
+
 class Slackbot:
     def __init__(self):
         with open('data/slack_credentials.json', 'r') as f:

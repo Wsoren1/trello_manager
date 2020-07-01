@@ -49,6 +49,7 @@ class TrelloBoard:
                 self.labels[j_obj['name']] = j_obj['id']
                 if j_obj['name'] not in self.label_names:
                     self.label_names += [j_obj['name']]
+        self.push_recurring_cards()
         self.delete_manually_archived_cards()
         self.light_update_self()
 
@@ -145,6 +146,10 @@ class TrelloBoard:
         with open('data/recurring.json', 'w') as f:
             json.dump(recurring_cards, f)
 
+        with open('data/RecurringIDsRan.txt', 'r') as f:
+            ids = f.readlines()
+            ran_ids = [id[:-1] for id in ids]
+
         with open('data/recurring.json', 'r') as f:
             j = json.load(f)
             for j_obj in j:
@@ -160,14 +165,17 @@ class TrelloBoard:
                         "Sa": 6
                     }
                     if dt.date.today().weekday() == abbrv_to_dt[day]:
-                        url = self.base_url + 'cards' + self.authentication
-                        querystring = {
-                            "name"     : j_obj['name'],
-                            "due"      : (dt.datetime.now() + dt.timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                            "idLabels" : j_obj['idLabels'],
-                            "idList"   : self.lists["Today"]
-                        }
-                        req.request("POST", url, params=querystring)
+                        if j_obj['id'] not in ran_ids:
+                            url = self.base_url + 'cards' + self.authentication
+                            querystring = {
+                                "name"     : j_obj['name'],
+                                "due"      : (dt.datetime.now() + dt.timedelta(hours=23)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                                "idLabels" : j_obj['idLabels'],
+                                "idList"   : self.lists["Today"]
+                            }
+                            req.request("POST", url, params=querystring)
+                            with open('data/RecurringIDsRan.txt', 'a') as f2:
+                                f2.write(j_obj['id'] + '\n')
 
         with req.request("GET", self.base_url + "lists/{0}/cards".format(self.lists["Today"])+self.authentication) as r:
             j = json.loads(r.content)

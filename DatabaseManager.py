@@ -56,8 +56,8 @@ class DatabaseManager:
                 else:
                     json.dump(self.toArchive, f)
         self.toArchive = []
-        with open('data/IDsToArchive.txt', 'w') as f:
-            f.close()
+        with open('data/IDsToArchive.txt', 'w') as _:
+            pass
 
     def edit_object(self, id, key, value):
         with open('data/active.json', 'r') as f:

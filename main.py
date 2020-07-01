@@ -80,9 +80,15 @@ def overdue_check(TB, DM):
 
 
 def overdue_loop(TB, DM):
-    last_run = datetime.datetime.now() + datetime.timedelta(hours=3)
+    last_run = datetime.datetime.now() + datetime.timedelta(hours=1)
+    midnight = datetime.datetime.now()
+    now = datetime.datetime.now() - datetime.timedelta(hours=2)
     while True:
-
+        sleep(4)
+        # midnight = datetime.datetime.combine(datetime.date.today(), datetime.datetime.min.time())
+        if midnight - now < datetime.timedelta(hours=1) and \
+           now - midnight < datetime.timedelta(hours=1):
+            continue
         with open('data/OverdueBufferCheck.txt', 'r') as f:
             ids = f.readlines()
             if len(ids) == 0:
@@ -93,28 +99,26 @@ def overdue_loop(TB, DM):
             last_run = datetime.datetime.now() + datetime.timedelta(hours=2)
 
 
-
-
 def main(TB, DM):
     with open('settings.json', 'r') as file:
         settings = json.loads(file.read())
         refresh_time = settings["refresh_time"]
 
-    last_run_long = datetime.datetime.now()
     i = 0
     while True:  # loop that bot will run tasks
         TB.light_update_self()
         DM.update_archive()
+        midnight = datetime.datetime.combine(datetime.date.today(), datetime.datetime.min.time())
+        now = datetime.datetime.now()
         if i == 0:
             TB.heavy_update_self()
-            i = 10
+            i = 5
         i -= 1
 
-        # print(last_run_long - datetime.datetime.now())
-
-        if last_run_long - datetime.datetime.now() < datetime.timedelta(hours=0):
-            TB.push_recurring_cards()
-            last_run_long = datetime.datetime.now() + datetime.timedelta(hours=24)
+        if midnight - now > datetime.timedelta(minutes=0):
+            if midnight - now <= datetime.timedelta(seconds=settings["refresh_time"] * 1.5):
+                with open('data/RecurringIDsRan.txt', 'w') as _:
+                    pass
         # Extract data
         # run data processing script
         # push any re-occuring tasks to appropriate board
@@ -132,6 +136,7 @@ DM = DatabaseManager()
 
 main_thread_sleeping = threading.Event()
 no_user_interaction_detect = threading.Event()
+no_user_interaction_detect.set()
 overdue_thread = threading.Thread(target=overdue_loop, args=[TB, DM])
 main_thread = threading.Thread(target=main, args=[TB, DM])
 
