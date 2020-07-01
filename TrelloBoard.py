@@ -3,6 +3,7 @@ import json
 import datetime as dt
 import re
 import os
+import random
 
 
 class TrelloBoard:
@@ -26,7 +27,6 @@ class TrelloBoard:
         self.heavy_update_self()
 
     def light_update_self(self):
-        os.remove('data/OverdueBufferCheck.txt')
         with open('data/OverdueBufferCheck.txt', 'w') as f:
             f.close()
 
@@ -49,7 +49,7 @@ class TrelloBoard:
                 self.labels[j_obj['name']] = j_obj['id']
                 if j_obj['name'] not in self.label_names:
                     self.label_names += [j_obj['name']]
-
+        self.delete_manually_archived_cards()
         self.light_update_self()
 
     def _extract_labels_data(self):
@@ -116,13 +116,12 @@ class TrelloBoard:
                         f.write(j_obj['id'] + '\n')
 
                 elif days_since_due > -3:
-                    querystring['idLabels'] = [self.labels["Priority"]] + j_obj["idLabels"]
+                    if self.labels["Recurring"] not in j_obj["idLabels"]:
+                        querystring['idLabels'] = [self.labels["Priority"]] + j_obj["idLabels"]
 
-                else:
-                    if j_obj['dueComplete']:
-                        querystring["idList"] = self.lists["Completed Today"]
-
-                if days_since_due > -1:
+                if j_obj['dueComplete']:
+                    querystring["idList"] = self.lists["Completed Today"]
+                elif days_since_due > -1:
                     querystring['idList'] = self.lists["Today"]
 
             req.request("PUT", url, params=querystring)
@@ -132,4 +131,70 @@ class TrelloBoard:
         req.request("PUT", url, params=querystring)
 
     def push_recurring_cards(self):
-        pass
+        cards = req.request("GET", self.base_url + 'boards/{0}/cards'.format(self.board_id) + self.authentication)
+        j = json.loads(cards.content)
+
+        recurring_cards = []
+        project_cards = []
+        for j_obj in j:
+            if j_obj['idList'] == self.lists["Recurring"]:
+                recurring_cards += [j_obj]
+            if j_obj['idList'] == self.lists["Projects"]:
+                project_cards += [j_obj]
+
+        with open('data/recurring.json', 'w') as f:
+            json.dump(recurring_cards, f)
+
+        with open('data/recurring.json', 'r') as f:
+            j = json.load(f)
+            for j_obj in j:
+                days_to_assign = j_obj['desc'].split(' ')
+                for day in days_to_assign:
+                    abbrv_to_dt = {
+                        "Su": 0,
+                        "M" : 1,
+                        "Tu": 2,
+                        "W" : 3,
+                        "Th": 4,
+                        "F" : 5,
+                        "Sa": 6
+                    }
+                    if dt.date.today().weekday() == abbrv_to_dt[day]:
+                        url = self.base_url + 'cards' + self.authentication
+                        querystring = {
+                            "name"     : j_obj['name'],
+                            "due"      : (dt.datetime.now() + dt.timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                            "idLabels" : j_obj['idLabels'],
+                            "idList"   : self.lists["Today"]
+                        }
+                        req.request("POST", url, params=querystring)
+
+        with req.request("GET", self.base_url + "lists/{0}/cards".format(self.lists["Today"])+self.authentication) as r:
+            j = json.loads(r.content)
+            if len(j) < 5 and len(project_cards) > 0:
+                url = self.base_url + 'cards' + self.authentication
+                project = random.choice(project_cards)
+                querystring = {
+                    "name"     : "Work on project: " + project['name'],
+                    "due"      : (dt.datetime.now() + dt.timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                    "idLabels" : project['idLabels'],
+                    "idList"   : self.lists["Today"]
+                }
+                req.request("POST", url, params=querystring)
+
+    def delete_manually_archived_cards(self):
+        with open('data/active.json', 'r') as f:
+            j_local = json.load(f)
+
+        cards = req.request("GET", self.base_url + "boards/{0}/cards".format(self.board_id) + self.authentication)
+        j_import = json.loads(cards.content)
+        j_import_ids = [obj['id'] for obj in j_import]
+
+        j_preserve = []
+
+        for j_local_obj in j_local:
+            if j_local_obj['id'] in j_import_ids:
+                j_preserve += [j_local_obj]
+
+        with open('data/active.json', 'w') as f:
+            json.dump(j_preserve, f)

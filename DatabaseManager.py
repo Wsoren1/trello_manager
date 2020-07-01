@@ -41,6 +41,10 @@ class DatabaseManager:
 
         archive_file = 'data/archive/{0}.json'.format(self.archive_title)
         j_prev_archive = None
+
+        if not os.path.exists(archive_file):
+            open(archive_file, 'w')
+
         if os.stat(archive_file).st_size != 0:
             with open(archive_file, 'r') as f:
                 j_prev_archive = json.load(f)
@@ -51,11 +55,9 @@ class DatabaseManager:
                     json.dump(self.toArchive + j_prev_archive, f)
                 else:
                     json.dump(self.toArchive, f)
-        os.remove('data/IDsToArchive.txt')
         self.toArchive = []
         with open('data/IDsToArchive.txt', 'w') as f:
             f.close()
-
 
     def edit_object(self, id, key, value):
         with open('data/active.json', 'r') as f:

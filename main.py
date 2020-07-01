@@ -33,9 +33,13 @@ def overdue_check(TB, DM):
         SB.send_message(SB.construct_text("due_passed", title))
 
         while SB.get_last_user_message() is '':
+            no_user_interaction_detect.set()
+
             sleep(4)
 
         response = SB.get_last_user_message()
+        main_thread_sleeping.wait()
+        no_user_interaction_detect.clear()
 
         highest_similarity = similarity(response, "Excused")  # convert to array comparison instead of if chain
 
@@ -66,42 +70,70 @@ def overdue_check(TB, DM):
 
         new_deadline = datetime.datetime.today() + datetime.timedelta(days=days_to_extend)
 
-        query = {}
+        query = dict()
         query['due'] = new_deadline.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         DM.edit_object(obj['id'], 'overdue_log', [log])
         TB.set_card_query(obj['id'], query)
 
         SB.send_message(SB.construct_text("thank_for_data"))
+        no_user_interaction_detect.set()
 
 
 def overdue_loop(TB, DM):
-    last_run = datetime.datetime.now()
+    last_run = datetime.datetime.now() + datetime.timedelta(hours=3)
     while True:
-        with open('OverdueBufferCheck.txt', 'r') as f:
-            pass
+
+        with open('data/OverdueBufferCheck.txt', 'r') as f:
+            ids = f.readlines()
+            if len(ids) == 0:
+                continue
+
         if last_run - datetime.datetime.now() > datetime.timedelta(hours=2):
             overdue_check(TB, DM)
+            last_run = datetime.datetime.now() + datetime.timedelta(hours=2)
 
 
-with open('settings.json', 'r') as file:
-    settings = json.loads(file.read())
-    refresh_time = settings["refresh_time"]
+
+
+def main(TB, DM):
+    with open('settings.json', 'r') as file:
+        settings = json.loads(file.read())
+        refresh_time = settings["refresh_time"]
+
+    last_run_long = datetime.datetime.now()
+    i = 0
+    while True:  # loop that bot will run tasks
+        TB.light_update_self()
+        DM.update_archive()
+        if i == 0:
+            TB.heavy_update_self()
+            i = 10
+        i -= 1
+
+        # print(last_run_long - datetime.datetime.now())
+
+        if last_run_long - datetime.datetime.now() < datetime.timedelta(hours=0):
+            TB.push_recurring_cards()
+            last_run_long = datetime.datetime.now() + datetime.timedelta(hours=24)
+        # Extract data
+        # run data processing script
+        # push any re-occuring tasks to appropriate board
+        # separate active tasks from previous tasks
+
+        main_thread_sleeping.set()
+
+        sleep(refresh_time)
+        no_user_interaction_detect.wait()
+        main_thread_sleeping.clear()
+
 
 TB = TrelloBoard()
 DM = DatabaseManager()
 
-last_run = datetime.datetime.now() + datetime.timedelta(hours=2)
+main_thread_sleeping = threading.Event()
+no_user_interaction_detect = threading.Event()
+overdue_thread = threading.Thread(target=overdue_loop, args=[TB, DM])
+main_thread = threading.Thread(target=main, args=[TB, DM])
 
-while True:  # loop that bot will run tasks
-    TB.light_update_self()
-    DM.update_archive()
-
-    if last_run - datetime.datetime.now() < datetime.timedelta(hours=0):
-        overdue_check(TB, DM)
-        last_run = datetime.datetime.now() + datetime.timedelta(hours=2)
-
-    # Extract data
-    # run data processing script
-    # push any re-occuring tasks to appropriate board
-    # separate active tasks from previous tasks
-    sleep(refresh_time)
+main_thread.start()
+overdue_thread.start()

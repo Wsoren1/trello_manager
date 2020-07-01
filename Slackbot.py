@@ -23,7 +23,7 @@ class Slackbot:
             "due_passed":      "We observe mission `{0}` timeline parameters have expired.  We do not understand why.  "
                                "Your input is required for consensus. ```Ambitious Due Date``` ```Task Overload``` "
                                "```Forgot to Update``` ```Excused```",
-            "set_due_date":    "Mission still critical.  mission parameters have , Commander?",
+            "set_due_date":    "Mission still critical.  How long have the mission parameters been extended, Commander?",
             "thank_for_data":  "Storing parameters.  Analyzing data.  Sorensen-Commander, we thank you."
         }
         return message_dict[message].format(kwargs)
